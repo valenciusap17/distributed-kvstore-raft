@@ -48,19 +48,19 @@ func (js *JsonStore) Set(key, value string) error {
 	return nil
 }
 
-func (js *JsonStore) Get(key string) (string, error) {
+func (js *JsonStore) Get(key string) (string, bool) {
 	storeFile, err := os.OpenFile(js.filePath, os.O_RDWR|os.O_CREATE, 0644)
 	defer handleFileClose(storeFile)
 	if err != nil {
-		return "", fmt.Errorf("Error opening file: %v", err)
+		return "", false
 	}
 
 	data, err := readData(storeFile, err)
 	if err != nil {
-		return "", err
+		return "", false
 	}
 
-	return data[key], nil
+	return data[key], true
 }
 
 func (js *JsonStore) Delete(key string) error {

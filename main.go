@@ -4,6 +4,7 @@ import (
 	"flag"
 	"strconv"
 
+	"github.com/valenciusap17/distributed-kvstore-raft/httpapi"
 	"github.com/valenciusap17/distributed-kvstore-raft/kvstore"
 	"github.com/valenciusap17/distributed-kvstore-raft/raftnode"
 )
@@ -24,6 +25,13 @@ func main() {
 	kvstore := kvstore.NewKeyValueStore(jsonStore)
 
 	rn := raftnode.NewRaftNode(*id, kvstore, *initialCluster, *dataDir, *logDir, *join)
-	
-	appServer := 
+
+	apiServer := httpapi.ApiServer{RaftNode: rn}
+	peerServer := httpapi.ApiServer{RaftNode: rn}
+
+	go apiServer.ServeHTTP(*clientListenUrl)
+	go peerServer.ServeHTTP(*peerListenUrl)
+	go rn.Run()
+
+	select {}
 }

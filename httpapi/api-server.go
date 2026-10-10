@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/valenciusap17/distributed-kvstore-raft/logger"
 	"github.com/valenciusap17/distributed-kvstore-raft/raftnode"
 )
@@ -71,4 +72,68 @@ func (as *ApiServer) handleSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (as *ApiServer) handleGet(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	key := vars["key"]
+	if key == "" {
+		http.Error(w, "Key is required", http.StatusBadRequest)
+		return
+	}
+
+	// if leader no need to do linearized check
+	if as.RaftNode.Node.Status().Lead == as.RaftNode.Id {
+		value, ok := as.RaftNode.KvStore.Get(key)
+
+		if !ok {
+			http.Error(w, "Key not found", http.StatusNotFound)
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]string{key: value})
+		return
+	}
+
+	reqCtx := []byte(key)
+	ctx := context.TODO()
+	err := as.RaftNode.Node.ReadIndex(ctx, reqCtx)
+	if err != nil {
+		http.Error(w, "Failed to initiate ReadIndex", http.StatusInternalServerError)
+		return
+	}
+
+	rs := <-as.RaftNode.ReadState
+
+	if string(rs.RequestCtx) != key {
+		http.Error(w, "ReadIndex mismatch", http.StatusInternalServerError)
+		return
+	}
+
+	// wait for 10 seconds
+	wait := 0
+	waitOver := false
+	for as.RaftNode.CommitIndex < rs.Index {
+		if wait > 10 {
+			waitOver = true
+			break
+		}
+		time.Sleep(1 * time.Second)
+		wait += 1
+	}
+
+	if waitOver {
+		http.Error(w, "Key not found", http.StatusInternalServerError)
+		return
+	}
+
+	value, ok := as.RaftNode.KvStore.Get(key)
+
+	if !ok {
+		http.Error(w, "Key not found", http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{key: value})
+
 }

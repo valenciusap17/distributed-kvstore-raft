@@ -17,7 +17,7 @@ func (kv *KeyValueStore) Set(key, value string) {
 	}
 }
 
-func (kv *KeyValueStore) Get(key string) string {
+func (kv *KeyValueStore) Get(key string) (string, bool) {
 	return kv.PersistentStore.Get(key)
 }
 

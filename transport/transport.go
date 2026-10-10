@@ -18,7 +18,7 @@ type HTTPTransport struct {
 	id      uint64
 	client  *http.Client
 	peerMap map[uint64]string
-	RecvC   chan raftpb.Message
+	RecvC   chan *raftpb.Message
 	mu      sync.Mutex
 }
 
@@ -33,7 +33,7 @@ func NewHTTPTransport(id uint64, peers []string) *HTTPTransport {
 		id:      id,
 		client:  &http.Client{},
 		peerMap: peerMap,
-		RecvC:   make(chan raftpb.Message, 1024),
+		RecvC:   make(chan *raftpb.Message, 1024),
 	}
 }
 
@@ -66,7 +66,7 @@ func (ht *HTTPTransport) RemovePeer(nodeID uint64) {
 func (ht *HTTPTransport) SendMessages(messages []*raftpb.Message) {
 	for _, msg := range messages {
 		if *msg.To == ht.id {
-			ht.RecvC <- *msg
+			ht.RecvC <- msg
 		} else {
 			ht.SendMessage(msg)
 		}
@@ -111,8 +111,8 @@ func (ht *HTTPTransport) Receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var msg raftpb.Message
-	if err := proto.Unmarshal(body, &msg); err != nil {
+	var msg *raftpb.Message
+	if err := proto.Unmarshal(body, msg); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

@@ -1,8 +1,11 @@
 package raftnode
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/valenciusap17/distributed-kvstore-raft/kvstore"
@@ -138,4 +141,68 @@ func NewRaftNode(id uint64, kvstore *kvstore.KeyValueStore, initialCluster strin
 	}
 
 	return rn
+}
+
+func (rn *RaftNode) Run() {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-rn.stopc:
+			return
+		case rd := <-rn.Node.Ready():
+			rn.writeReadStates(rd)
+
+			if err := rn.storage.Append(rd.Entries); err != nil {
+				logger.Log.Fatal(err)
+			}
+
+			rn.Transport.SendMessages(rd.Messages)
+
+			if len(rd.CommittedEntries) > 0 {
+				rn.CommitIndex = *rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
+				rn.appendToLog(rd.CommittedEntries)
+			}
+			rn.processComittedEntries(rd)
+			rn.Node.Advance()
+		case msg := <-rn.Transport.RecvC:
+			err := rn.Node.Step(context.Background(), msg)
+			if err != nil {
+				return
+			}
+		case <-ticker.C:
+			rn.Node.Tick()
+		}
+	}
+}
+
+func (rn *RaftNode) writeReadStates(rd raft.Ready) {
+	for _, rs := range rd.ReadStates {
+		rn.ReadState <- rs
+	}
+}
+
+func (rn *RaftNode) processComittedEntries(rd raft.Ready) {
+	for _, entry := range rd.CommittedEntries {
+		if *entry.Type == raftpb.EntryNormal && len(entry.Data) > 0 {
+			var logDataEntry LogDataEntry
+			if err := json.Unmarshal(entry.Data, &logDataEntry); err == nil {
+				if logDataEntry.Operation == OperationAdd {
+					rn.KvStore.Set(logDataEntry.Key, logDataEntry.Value)
+				} else if logDataEntry.Operation == OperationDelete {
+					rn.KvStore.Delete(logDataEntry.Key)
+				}
+			}
+		}
+	}
+}
+
+func (rn *RaftNode) appendToLog(entries []*raftpb.Entry) {
+	for _, entry := range entries {
+		err := appendToLogFile(rn.logDir, entry)
+		if err != nil {
+			return
+		}
+	}
 }
