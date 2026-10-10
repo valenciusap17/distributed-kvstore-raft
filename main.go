@@ -25,4 +25,5 @@ func main() {
 
 	rn := raftnode.NewRaftNode(*id, kvstore, *initialCluster, *dataDir, *logDir, *join)
 	
+	appServer := 
 }

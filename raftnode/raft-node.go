@@ -68,8 +68,8 @@ var OperationType_Name = map[OperationType]string{
 
 type LogDataEntry struct {
 	Operation OperationType `json:"operation"`
-	key       string        `json:"key"`
-	value     string        `json:"value"`
+	Key       string        `json:"key"`
+	Value     string        `json:"value"`
 }
 
 func NewRaftNode(id uint64, kvstore *kvstore.KeyValueStore, initialCluster string, dataDir string, logDir string, join bool) *RaftNode {

@@ -18,7 +18,7 @@ func (kv *KeyValueStore) Set(key, value string) {
 }
 
 func (kv *KeyValueStore) Get(key string) string {
-	return kv.Get(key)
+	return kv.PersistentStore.Get(key)
 }
 
 func (kv *KeyValueStore) Delete(key string) {
